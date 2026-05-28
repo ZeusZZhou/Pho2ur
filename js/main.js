@@ -809,12 +809,25 @@ document.getElementById('export-btn').addEventListener('click', async function()
             ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
             const logoY = barOffsetY + barRect.height / 2;
             
+            // 绘制二维码
+            const qrImg = document.getElementById('watermark-qr');
+            const qrSize = 32; // 二维码尺寸
+            let textStartX = 16; // 默认文字起始X坐标
+            
+            // 确保图片已加载且有效，才绘制到 Canvas 上
+            if (qrImg && qrImg.complete && qrImg.naturalWidth > 0) {
+                const qrY = barOffsetY + (barRect.height - qrSize) / 2;
+                ctx.drawImage(qrImg, 16, qrY, qrSize, qrSize);
+                textStartX = 16 + qrSize + 8; // 16(左边距) + 32(二维码宽) + 8(间距)
+            }
+            
+            // 绘制 Pho2ur 文字 (坐标动态后移)
             ctx.font = `bold 16px sans-serif`;
             ctx.fillStyle = '#1f2937';
-            ctx.fillText('Pho', 16, logoY);
+            ctx.fillText('Pho', textStartX, logoY);
             const customColor = window.getComputedStyle(document.getElementById('logo-2ur')).color;
             ctx.fillStyle = customColor;
-            ctx.fillText('2ur', 16 + ctx.measureText('Pho').width, logoY);
+            ctx.fillText('2ur', textStartX + ctx.measureText('Pho').width, logoY);
 
             ctx.textAlign = 'right';
             const bName = document.getElementById('bottom-location-name');
@@ -836,12 +849,46 @@ document.getElementById('export-btn').addEventListener('click', async function()
             ctx.restore();
         }
         
-        const link = document.createElement('a');
-        link.download = `Pho2ur_HQ_${new Date().getTime()}.png`;
-        link.href = finalCanvas.toDataURL('image/png', 1.0);
-        link.click();
         
-        this.innerHTML = originalText;
+        // 【修改部分】将 canvas 转为 Blob，并调用原生分享或下载
+        finalCanvas.toBlob(async (blob) => {
+            const fileName = `Pho2ur_HQ_${new Date().getTime()}.png`;
+            const file = new File([blob], fileName, { type: 'image/png' });
+            let useFallback = true;
+
+            // 尝试调用系统原生分享菜单 (iOS/Android 支持)，用户可直接选择"存储图像"到相册
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: 'Pho2ur Poster'
+                    });
+                    useFallback = false; // 分享成功，不需要回退下载
+                } catch (error) {
+                    // 用户取消分享或发生错误，继续走回退下载逻辑
+                    console.log('原生分享取消或失败:', error);
+                }
+            }
+
+            // 如果不支持原生分享，或用户取消了分享，则使用传统下载方式
+            if (useFallback) {
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = URL.createObjectURL(blob);
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }
+            
+            this.innerHTML = originalText;
+
+            // 【新增逻辑】控制弹窗每次进入网站只显示一次
+            if (!window.hasShownAboutModal) {
+                setTimeout(openAboutModal, 800);
+                window.hasShownAboutModal = true;
+            }
+            
+        }, 'image/png', 1.0);
+        
     } catch (err) {
         console.error("导出失败:", err);
         alert("导出失败，请重试。");
@@ -849,4 +896,57 @@ document.getElementById('export-btn').addEventListener('click', async function()
     }
 });
 
+// 确保页面加载时初始化文字排版
 window.onload = () => setTimeout(fitText, 100);
+
+// --- 取色滴管功能 ---
+function setupEyeDropper(btnId, inputId) {
+    const btn = document.getElementById(btnId);
+    const input = document.getElementById(inputId);
+    
+    // 检查浏览器是否支持原生的 EyeDropper API
+    if (window.EyeDropper) {
+        btn.classList.remove('hidden'); // 支持则显示滴管按钮
+        btn.addEventListener('click', async () => {
+            try {
+                const eyeDropper = new EyeDropper();
+                const result = await eyeDropper.open();
+                input.value = result.sRGBHex;
+                // 手动触发 input 事件，让你的 UI 实时更新颜色
+                input.dispatchEvent(new Event('input'));
+            } catch (e) {
+                // 用户按 Esc 取消取色时会进入这里，静默处理即可
+            }
+        });
+    }
+}
+setupEyeDropper('map-eyedropper-btn', 'map-color-input');
+setupEyeDropper('text-eyedropper-btn', 'text-color-input');
+
+// --- About Us 弹窗逻辑 ---
+const aboutBackdrop = document.getElementById('about-modal-backdrop');
+const aboutModal = document.getElementById('about-modal');
+const closeAboutBtn = document.getElementById('close-about-btn');
+
+function openAboutModal() {
+    aboutBackdrop.classList.remove('hidden');
+    setTimeout(() => {
+        aboutBackdrop.classList.remove('opacity-0');
+        aboutModal.classList.remove('scale-95');
+        aboutModal.classList.add('scale-100');
+    }, 10);
+}
+
+function closeAboutModal() {
+    aboutBackdrop.classList.add('opacity-0');
+    aboutModal.classList.remove('scale-100');
+    aboutModal.classList.add('scale-95');
+    setTimeout(() => {
+        aboutBackdrop.classList.add('hidden');
+    }, 300);
+}
+
+closeAboutBtn.addEventListener('click', closeAboutModal);
+aboutBackdrop.addEventListener('click', (e) => {
+    if (e.target === aboutBackdrop) closeAboutModal(); // 点击背景关闭
+});
