@@ -908,6 +908,11 @@ function setupEyeDropper(btnId, inputId) {
     if (window.EyeDropper) {
         btn.classList.remove('hidden'); // 支持则显示滴管按钮
         btn.addEventListener('click', async () => {
+            // 【新增逻辑】移动端点击滴管时，自动收起底部控制台以便取色
+            if (window.innerWidth < 768) {
+                closeMobilePanel();
+            }
+            
             try {
                 const eyeDropper = new EyeDropper();
                 const result = await eyeDropper.open();
