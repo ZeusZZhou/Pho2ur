@@ -928,6 +928,15 @@ function setupEyeDropper(btnId, inputId) {
 setupEyeDropper('map-eyedropper-btn', 'map-color-input');
 setupEyeDropper('text-eyedropper-btn', 'text-color-input');
 
+function closePanelOnColorInputClick() {
+    if (window.innerWidth < 768) {
+        closeMobilePanel();
+    }
+}
+
+document.getElementById('map-color-input').addEventListener('click', closePanelOnColorInputClick);
+document.getElementById('text-color-input').addEventListener('click', closePanelOnColorInputClick);
+
 // --- About Us 弹窗逻辑 ---
 const aboutBackdrop = document.getElementById('about-modal-backdrop');
 const aboutModal = document.getElementById('about-modal');
